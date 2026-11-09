@@ -159,10 +159,11 @@ $('loadModels').addEventListener('click', async () => {
 $('testConn').addEventListener('click', async () => {
   const s = $('setStatus'); const key = $('key').value.trim(); const model = $('model').value;
   if (!key) { s.textContent = 'Enter your API key first.'; s.className = 'status err'; return; }
-  s.textContent = 'Testing ' + model + '…'; s.className = 'status';
+  s.textContent = 'Testing ' + model + '… (gives up after 20 s)'; s.className = 'status';
+  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 20000);
   try {
     const r = await fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, signal: ctl.signal,
       body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with the single word: OK' }] }] }),
     });
     if (!r.ok) throw new Error(await errText(r));
@@ -170,8 +171,11 @@ $('testConn').addEventListener('click', async () => {
     const t = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts.map((p) => p.text || '').join('').trim();
     s.textContent = 'Works. Key and ' + model + ' are fine. Reply: ' + (t || '(empty)'); s.className = 'status ok';
   } catch (e) {
-    s.textContent = (e instanceof TypeError ? 'Network error (Failed to fetch): the phone could not reach Google. ' : 'Failed: ') + e.message; s.className = 'status err';
-  }
+    s.textContent = e.name === 'AbortError'
+      ? 'No answer from Google after 20 s. This model may be stalled or overloaded, or something on the phone is blocking the connection. Try a different model, or another network.'
+      : (e instanceof TypeError ? 'Network error (Failed to fetch): the phone could not reach Google. ' : 'Failed: ') + e.message;
+    s.className = 'status err';
+  } finally { clearTimeout(timer); }
 });
 
 // ---------- file selection / recording ----------
