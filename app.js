@@ -1,7 +1,7 @@
 'use strict';
 
 const API = 'https://generativelanguage.googleapis.com';
-const INLINE_LIMIT = 15 * 1024 * 1024; // bigger files go through the Files API
+const INLINE_LIMIT = 12 * 1024 * 1024; // bigger files go through the Files API
 const $ = (id) => document.getElementById(id);
 
 // ---------- storage helpers (wrapped: storage can be unavailable) ----------
@@ -155,6 +155,25 @@ $('loadModels').addEventListener('click', async () => {
   } catch (e) { s.textContent = e.message; s.className = 'status err'; }
 });
 
+// Connection test: key + model + network, no audio involved
+$('testConn').addEventListener('click', async () => {
+  const s = $('setStatus'); const key = $('key').value.trim(); const model = $('model').value;
+  if (!key) { s.textContent = 'Enter your API key first.'; s.className = 'status err'; return; }
+  s.textContent = 'Testing ' + model + '…'; s.className = 'status';
+  try {
+    const r = await fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with the single word: OK' }] }] }),
+    });
+    if (!r.ok) throw new Error(await errText(r));
+    const j = await r.json();
+    const t = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts.map((p) => p.text || '').join('').trim();
+    s.textContent = 'Works. Key and ' + model + ' are fine. Reply: ' + (t || '(empty)'); s.className = 'status ok';
+  } catch (e) {
+    s.textContent = (e instanceof TypeError ? 'Network error (Failed to fetch): the phone could not reach Google. ' : 'Failed: ') + e.message; s.className = 'status err';
+  }
+});
+
 // ---------- file selection / recording ----------
 function pickFile(file) {
   currentFile = file;
@@ -240,6 +259,23 @@ function buildPrompt(tpl) {
     'Use consistent labels (Speaker 1, Speaker 2, ...) and use real names only if they are clearly stated in the audio. Do not invent speech.\n' +
     '- summary: Markdown, written in the language of the recording unless told otherwise. Instructions: ' + tpl.prompt;
 }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const NET_MSG = 'Could not reach Google ("Failed to fetch"). Stay in this app with the screen on while it works, check your connection, and try again.';
+// Retries on "busy" statuses and dropped connections, telling the user what is happening.
+async function withRetry(fn, label) {
+  const delays = [4000, 12000, 30000];
+  for (let i = 0; ; i++) {
+    try {
+      const r = await fn();
+      if (![429, 500, 502, 503, 504].includes(r.status) || i >= delays.length) return r;
+      setStatus(`${label}: Gemini is busy (${r.status}). Retrying in ${delays[i] / 1000}s… (${i + 1}/${delays.length})`);
+    } catch (e) {
+      if (i >= delays.length) throw new Error(NET_MSG);
+      setStatus(`${label}: connection dropped. Retrying in ${delays[i] / 1000}s… (${i + 1}/${delays.length})`);
+    }
+    await sleep(delays[i]);
+  }
+}
 async function generate(parts, withMax) {
   const body = { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 0.2 } };
   if (withMax) body.generationConfig.maxOutputTokens = 65536;
@@ -259,8 +295,9 @@ $('go').addEventListener('click', async () => {
     else { setStatus('Uploading ' + (currentFile.size / 1048576).toFixed(0) + ' MB…'); media = { fileData: { mimeType: mime, fileUri: await uploadFile(currentFile, mime) } }; }
     setStatus('Transcribing and summarizing — long recordings can take a few minutes…');
     const parts = [{ text: buildPrompt(tpl) }, media];
-    let r = await generate(parts, true);
-    if (r.status === 400) r = await generate(parts, false); // some models reject a large output cap
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    let r = await withRetry(() => generate(parts, true), 'Gemini');
+    if (r.status === 400) r = await withRetry(() => generate(parts, false), 'Gemini'); // some models reject a large output cap
     if (!r.ok) throw new Error(await errText(r));
     const j = await r.json();
     const cand = j.candidates && j.candidates[0];
@@ -274,7 +311,10 @@ $('go').addEventListener('click', async () => {
     else setStatus('Done. Saved to Library.', 'ok');
     const box = $('result'); box.innerHTML = ''; box.appendChild(resultCard(rec)); box.hidden = false;
   } catch (e) { setStatus(e.message, 'err'); }
-  finally { btn.disabled = !currentFile || !settings.apiKey; }
+  finally {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    btn.disabled = !currentFile || !settings.apiKey;
+  }
 });
 
 // ---------- share-target intake + service worker ----------
