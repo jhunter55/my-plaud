@@ -1,4 +1,4 @@
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `shell-${VERSION}`;
 const SHARED = 'shared-file';
 const ASSETS = ['./', './index.html', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
@@ -21,16 +21,25 @@ self.addEventListener('fetch', (e) => {
   // Android share sheet -> stash the file, then open the app
   if (e.request.method === 'POST' && url.pathname.endsWith('/share-target')) {
     e.respondWith((async () => {
+      const cache = await caches.open(SHARED);
+      let debug = '';
       try {
         const form = await e.request.formData();
-        const file = form.get('audio');
-        if (file && file.size) {
-          const cache = await caches.open(SHARED);
+        let file = null;
+        const seen = [];
+        for (const [k, v] of form.entries()) {
+          if (typeof v === 'string') seen.push(`${k}: text "${v.slice(0, 120)}"`);
+          else { seen.push(`${k}: file ${v.name} (${v.type || 'no type'}, ${v.size} bytes)`); if (!file && v.size) file = v; }
+        }
+        debug = seen.length ? 'Received: ' + seen.join('; ') : 'The share contained no data.';
+        if (file) {
           await cache.put('pending', new Response(file, {
             headers: { 'Content-Type': file.type || 'audio/mp4', 'X-Filename': encodeURIComponent(file.name || 'shared-audio') }
           }));
+          debug = '';
         }
-      } catch (err) { /* fall through to open the app */ }
+      } catch (err) { debug = 'Share handler error: ' + (err && err.message || err); }
+      if (debug) await cache.put('debug', new Response(debug));
       return Response.redirect('./?shared=1', 303);
     })());
     return;

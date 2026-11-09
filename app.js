@@ -286,8 +286,12 @@ async function takeShared() {
       const blob = await hit.blob(); const name = decodeURIComponent(hit.headers.get('X-Filename') || 'shared-audio');
       pickFile(new File([blob], name, { type: hit.headers.get('Content-Type') || blob.type })); await cache.delete('pending');
       setStatus('Shared file received. Pick a template and tap Transcribe.');
+    } else {
+      const dbg = await cache.match('debug'); const why = dbg ? await dbg.text() : 'No share data was stored (is the app up to date? Reopen it and try again).';
+      if (dbg) await cache.delete('debug');
+      setStatus('No audio file came through. ' + why, 'err');
     }
-  } catch {}
+  } catch (e) { setStatus('Could not read the shared file: ' + e.message, 'err'); }
   history.replaceState(null, '', location.pathname);
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
