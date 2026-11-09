@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161a">
+<title>My Plaud</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--mute:#667085;--line:#e3e6ec;--accent:#2f6fed;--accent-ink:#fff;--bad:#c0362c;--ok:#1f8a4c}
+@media (prefers-color-scheme:dark){:root{--bg:#14161a;--card:#1c1f26;--ink:#eceef3;--mute:#98a2b3;--line:#2b303a;--accent:#6b9bff;--accent-ink:#0b1020;--bad:#ff7b70;--ok:#5cd08d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:72px}
+header{padding:16px;font-weight:700;font-size:20px}
+main{padding:0 16px;max-width:720px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+select,input[type=text],input[type=password],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+textarea{min-height:120px;resize:vertical}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.row>*{flex:1 1 auto}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;border-radius:0;min-height:56px;background:none;color:var(--mute)}
+nav button.on{color:var(--accent);font-weight:700}
+.status{font-size:14px;color:var(--mute);margin-top:10px;min-height:20px}
+.status.err{color:var(--bad)}
+.status.ok{color:var(--ok)}
+.rec{display:flex;align-items:center;gap:10px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--bad);animation:p 1s infinite}
+@keyframes p{50%{opacity:.3}}
+.item{padding:12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border-bottom:0}
+.item b{display:block}
+.item small{color:var(--mute)}
+.md h1,.md h2,.md h3{font-size:17px;margin:16px 0 6px}
+.md p{margin:6px 0}
+.md ul{padding-left:20px;margin:6px 0}
+pre.tx{white-space:pre-wrap;word-break:break-word;font:14px/1.55 inherit;margin:0}
+.hint{font-size:13px;color:var(--mute)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>My Plaud</header>
+<main>
+
+<section id="tab-new">
+  <div class="card">
+    <label for="file">Audio file</label>
+    <input id="file" type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac,.opus">
+    <div class="row">
+      <button id="recBtn">● Record</button>
+    </div>
+    <div id="recInfo" class="rec status" hidden><span class="dot"></span><span id="recTime">0:00</span> &nbsp;(keep this screen on)</div>
+    <div id="picked" class="status"></div>
+
+    <label for="tpl">Template</label>
+    <select id="tpl"></select>
+    <div class="row"><button id="go" class="primary" disabled>Transcribe &amp; summarize</button></div>
+    <div id="status" class="status"></div>
+  </div>
+  <div id="result" hidden></div>
+</section>
+
+<section id="tab-lib" hidden>
+  <div class="card">
+    <input id="q" type="text" placeholder="Search transcripts and summaries">
+    <div id="list"></div>
+  </div>
+  <div id="libView" hidden></div>
+</section>
+
+<section id="tab-set" hidden>
+  <div class="card">
+    <label for="key">Gemini API key (from aistudio.google.com/apikey)</label>
+    <input id="key" type="password" autocomplete="off" placeholder="AIza...">
+    <label for="model">Model</label>
+    <select id="model"></select>
+    <div class="row"><button id="loadModels">Load available models</button><button id="saveSet" class="primary">Save</button></div>
+    <div id="setStatus" class="status"></div>
+    <p class="hint">The key is stored only in this browser on this phone. Free-tier requests may be used by Google to improve its products, so avoid sensitive recordings.</p>
+  </div>
+  <div class="card">
+    <b>Templates</b>
+    <label for="tsel">Edit template</label>
+    <select id="tsel"></select>
+    <label for="tname">Name</label>
+    <input id="tname" type="text">
+    <label for="tprompt">Summary instructions</label>
+    <textarea id="tprompt"></textarea>
+    <div class="row">
+      <button id="tsave" class="primary">Save</button>
+      <button id="tnew">Save as new</button>
+      <button id="tdel" class="danger">Delete</button>
+    </div>
+  </div>
+</section>
+
+</main>
+<nav>
+  <button data-tab="new" class="on">New</button>
+  <button data-tab="lib">Library</button>
+  <button data-tab="set">Settings</button>
+</nav>
+<script src="app.js"></script>
+</body>
+</html>
